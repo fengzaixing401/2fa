@@ -94,15 +94,26 @@ export function getCoreCode() {
 
     // 页面加载时获取密钥列表
     document.addEventListener('DOMContentLoaded', function() {
+        initializeTrustedClock();
         // 先检查认证状态
         if (checkAuth()) {
           loadSecrets();
           // Cookie 过期由浏览器自动管理，无需定时检查
         }
         initTheme();
-        
+
         // 恢复用户的排序选择
         restoreSortPreference();
+
+        // 排序 popover 外部点击 / Escape 关闭
+        if (typeof initSortDropdownOutsideClose === 'function') {
+          initSortDropdownOutsideClose();
+        }
+
+        // 初始化 FAB 拖拽并还原上次保存的位置
+        if (typeof initFABDrag === 'function') {
+          initFABDrag();
+        }
 
         // 页面加载后立即刷新所有OTP，确保时间同步
         setTimeout(() => {
@@ -119,6 +130,7 @@ export function getCoreCode() {
     async function loadSecrets() {
       const CACHE_KEY = '2fa-secrets-cache';
       try {
+        await ensureServerTimeSynchronized();
         const response = await authenticatedFetch('/api/secrets');
 
         if (response.status === 401) {
@@ -538,7 +550,14 @@ export function getCoreCode() {
       const secret = secrets.find(s => s.id === id);
       if (!secret) return;
 
-      if (!confirm('确定要删除 "' + secret.name + '" 吗？')) {
+      const confirmed = await showConfirmDialog({
+        title: '删除密钥',
+        message: '确定要删除 "' + secret.name + '" 吗？\\n该操作无法撤销。',
+        confirmText: '删除',
+        cancelText: '取消',
+        danger: true
+      });
+      if (!confirmed) {
         return;
       }
 
@@ -792,25 +811,6 @@ export function getCoreCode() {
       }
     });
 
-    // 模态框外部点击关闭
-    document.getElementById('secretModal').addEventListener('click', function(e) {
-      if (e.target === this) {
-        hideSecretModal();
-      }
-    });
-    
-    document.getElementById('qrModal').addEventListener('click', function(e) {
-      if (e.target === this) {
-        hideQRModal();
-      }
-    });
-
-    document.getElementById('importModal').addEventListener('click', function(e) {
-      if (e.target === this) {
-        hideImportModal();
-      }
-    });
-
     // 页面卸载时清理定时器
     window.addEventListener('beforeunload', function() {
       Object.values(otpIntervals).forEach(interval => {
@@ -827,7 +827,7 @@ export function getCoreCode() {
         return;
       }
 
-      const currentTime = Math.floor(Date.now() / 1000);
+      const currentTime = Math.floor(getCorrectedNowMs() / 1000);
       
       secrets.forEach(secret => {
         // 只检查TOTP类型

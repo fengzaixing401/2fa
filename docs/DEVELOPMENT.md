@@ -2,16 +2,16 @@
 
 ## 📋 目录
 
-- [项目架构](#项目架构)
-- [模块说明](#模块说明)
-- [开发环境](#开发环境)
-- [代码规范](#代码规范)
-- [API设计](#api设计)
-- [数据库设计](#数据库设计)
-- [部署](#部署)
-- [测试指南](#测试指南)
-- [性能优化](#性能优化)
-- [故障排查](#故障排查)
+- [项目架构](#️-项目架构)
+- [模块说明](#-模块说明)
+- [开发环境](#️-开发环境)
+- [代码规范](#-代码规范)
+- [API设计](#-api设计)
+- [数据库设计](#️-数据库设计)
+- [部署](#-部署)
+- [测试指南](#-测试指南)
+- [性能优化](#-性能优化)
+- [故障排查](#-故障排查)
 
 ## 🏗️ 项目架构
 
@@ -75,12 +75,12 @@ src/
 │       └── responsive.js # 响应式样式
 └── utils/                # 🛠️ 工具函数
     ├── auth.js           # 🔑 JWT 认证（PBKDF2, HttpOnly Cookie）
-    ├── backup.js         # 💾 智能备份（防抖 + 自动清理）
+    ├── backup.js         # 💾 智能备份（事件驱动 + 并发合并 + 自动清理）
     ├── constants.js      # 📋 常量定义
     ├── crypto.js         # 🔐 加密工具（HMAC-SHA1/256）
     ├── encryption.js     # 🔒 AES-GCM 256 位加密
     ├── logger.js         # 📝 结构化日志
-    ├── monitoring.js     # 📊 错误追踪（Sentry 集成）
+    ├── monitoring.js     # 📊 错误追踪与性能监控
     ├── rateLimit.js      # 🛡️ 请求限流
     ├── response.js       # 📡 标准化 HTTP 响应
     ├── security.js       # 🔒 CORS/CSP 安全头
@@ -146,12 +146,13 @@ export default {
 
 - `/` → 主页面 (UI模块)
 - `/setup` → 首次设置页面
-- `/api/secrets` → 密钥管理API
-- `/api/secrets/otp` → OTP生成
-- `/api/secrets/batch` → 批量导入
-- `/api/secrets/backup` → 备份管理
-- `/api/secrets/restore` → 备份恢复
-- `/api/auth/*` → 认证端点
+- `/api/setup`、`/api/login`、`/api/refresh-token` → 首次设置与认证
+- `/api/secrets`、`/api/secrets/{id}`、`/api/secrets/batch`、`/api/secrets/export` → 密钥管理
+- `/api/backup`、`/api/backup/restore`、`/api/backup/export/{backupKey}` → 备份管理
+- `/api/change-password`、`/api/settings` → 密码与系统设置
+- `/api/webdav/*`、`/api/s3/*`、`/api/onedrive/*`、`/api/gdrive/*` → 远程备份目标
+- `/api/favicon/{domain}` → Favicon 代理
+- `/otp`、`/otp/{secret}` → 公开 OTP 接口
 
 **核心功能**:
 
@@ -271,7 +272,7 @@ const otp = binary % 1000000;
 **关键特性**:
 
 - JWT tokens 存储在 HttpOnly, Secure, SameSite=Strict cookies
-- Token 有效期 1 天
+- Token 默认有效期 30 天（可在设置中自定义），剩余不足 7 天时自动续期
 - 首次使用通过 `/setup` 设置密码
 
 #### 加密模块 (`utils/encryption.js`)
@@ -292,8 +293,8 @@ const otp = binary % 1000000;
 
 **策略**:
 
-- **事件驱动**: 数据变更后自动触发，5分钟防抖
-- **定时任务**: 每10分钟 cron（仅在数据变化时通过SHA-256哈希比较）
+- **事件驱动**: 数据变更后自动触发；有请求上下文时通过 `ctx.waitUntil()` 转入后台执行
+- **定时任务**: 每天一次 cron 兜底检查（仅在数据变化时通过 SHA-256 哈希比较）
 - **自动清理**: 保留最新100个备份
 
 #### 限流模块 (`utils/rateLimit.js`)
@@ -377,8 +378,8 @@ npm install
 npx wrangler login
 
 # 创建KV存储
-npx wrangler kv:namespace create SECRETS_KV
-npx wrangler kv:namespace create SECRETS_KV --preview
+npx wrangler kv namespace create SECRETS_KV
+npx wrangler kv namespace create SECRETS_KV --preview
 ```
 
 4. **启动开发服务器**:
@@ -558,10 +559,15 @@ POST   /api/secrets          # 创建新密钥
 PUT    /api/secrets/{id}     # 更新密钥
 DELETE /api/secrets/{id}     # 删除密钥
 POST   /api/secrets/batch    # 批量导入
-POST   /api/secrets/otp      # 生成OTP
-GET    /api/secrets/backup   # 获取备份列表
-POST   /api/secrets/backup   # 创建备份
-POST   /api/secrets/restore  # 恢复备份
+POST   /api/secrets/export   # 批量导出标准 TXT/JSON/CSV/HTML
+GET    /api/backup           # 获取备份列表
+POST   /api/backup           # 创建备份
+POST   /api/backup/restore   # 预览/恢复备份
+GET    /api/backup/export/{backupKey} # 导出备份
+POST   /api/change-password  # 修改密码
+GET    /api/settings         # 读取设置
+POST   /api/settings         # 保存设置
+GET    /otp/{secret}         # 公开 OTP（可加 ?format=json）
 ```
 
 **请求格式**:
@@ -684,8 +690,7 @@ function migrateSecrets(secrets) {
 详细的部署指南请参考 [部署文档](DEPLOYMENT.md)，包括：
 
 - 一键部署（GitHub 按钮）
-- 非开发者图文教程
-- 开发者快速部署
+- 命令行部署
 - 自定义域名和环境变量配置
 
 ## 🧪 测试指南
@@ -837,8 +842,8 @@ if (currentHash !== lastHash) {
 const logger = getLogger(env);
 logger.info('Operation completed', { duration: elapsed, operation: 'backup' });
 
-// 错误追踪（可选 Sentry 集成）
-// 配置 SENTRY_DSN 环境变量启用
+// 错误追踪（使用 utils/monitoring.js）
+monitoring.captureError(error, { operation: 'backup' });
 ```
 
 ## 🔧 故障排查
@@ -918,10 +923,10 @@ npx wrangler tail --grep "ERROR"
 
 ```bash
 # 查看KV数据
-npx wrangler kv:key list --namespace-id=your-namespace-id
+npx wrangler kv key list --namespace-id=your-namespace-id
 
 # 获取特定键值
-npx wrangler kv:key get "secrets" --namespace-id=your-namespace-id
+npx wrangler kv key get "secrets" --namespace-id=your-namespace-id
 ```
 
 **生产环境监控**:

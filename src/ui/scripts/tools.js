@@ -11,6 +11,10 @@ import { getBase32ToolCode } from './tools/base32Tool.js';
 import { getTimestampToolCode } from './tools/timestampTool.js';
 import { getKeyCheckerToolCode } from './tools/keyChecker.js';
 import { getKeyGeneratorToolCode } from './tools/keyGenerator.js';
+import { getWebdavToolCode } from './tools/webdavTool.js';
+import { getS3ToolCode } from './tools/s3Tool.js';
+import { getOneDriveToolCode } from './tools/onedriveTool.js';
+import { getGoogleDriveToolCode } from './tools/gdriveTool.js';
 
 /**
  * Get complete Tools code by integrating all tool modules
@@ -22,11 +26,15 @@ export function getToolsCode() {
 
     // 入口函数
     function showQRScanAndDecode() {
+      // 预加载 jsQR（解析二维码图片需要）
+      if (typeof ensureJsQR === 'function') ensureJsQR().catch(() => {});
       hideToolsModal();
       showQRDecodeModal();
     }
 
     function showQRGenerateTool() {
+      // 预加载 qrcode-generator（生成二维码需要）
+      if (typeof ensureQRCodeGen === 'function') ensureQRCodeGen().catch(() => {});
       hideToolsModal();
       showQRGenerateModal();
     }
@@ -51,6 +59,26 @@ export function getToolsCode() {
       showKeyGeneratorModal();
     }
 
+    function showWebdavTool() {
+      hideToolsModal();
+      showWebdavModal();
+    }
+
+    function showS3Tool() {
+      hideToolsModal();
+      showS3Modal();
+    }
+
+    function showOneDriveTool() {
+      hideToolsModal();
+      showOneDriveModal();
+    }
+
+    function showGoogleDriveTool() {
+      hideToolsModal();
+      showGoogleDriveModal();
+    }
+
 ${getQRDecodeToolCode()}
 
 ${getQRGenerateToolCode()}
@@ -62,5 +90,13 @@ ${getTimestampToolCode()}
 ${getKeyCheckerToolCode()}
 
 ${getKeyGeneratorToolCode()}
+
+${getWebdavToolCode()}
+
+${getS3ToolCode()}
+
+${getOneDriveToolCode()}
+
+${getGoogleDriveToolCode()}
 `;
 }

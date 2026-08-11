@@ -3,7 +3,10 @@ main = "src/worker.js"
 compatibility_date = "2024-01-13"
 workers_dev = true
 
-# KV 命名空间（生产环境）
+# KV 命名空间
+# 始终声明 SECRETS_KV，避免 Git 自动构建部署时丢失绑定。
+# 新版 Wrangler 会在首次部署时自动创建或保持已链接的 KV 资源。
+# 如需固定到指定资源，可在本地补充 id / preview_id。
 [[kv_namespaces]]
 binding = "SECRETS_KV"
 id = "079f11a8ab6b47afba666794341b5fc4"
@@ -39,8 +42,11 @@ crons = ["0 16 * * *"]
 #   npm run deploy:package      # 使用 package.json 版本
 #
 # 注意：版本号由部署脚本注入，此处的值仅用于本地开发
+# ENVIRONMENT 默认为 production，确保任何直达部署入口（wrangler deploy、Git 自动构建）
+# 都能拿到长缓存；本地开发请走 `npm run dev`（已绑定 --env development）
 [vars]
 SW_VERSION = "v1"
+ENVIRONMENT = "production"
 
 # ====================================
 # 开发/测试环境配置
@@ -48,6 +54,11 @@ SW_VERSION = "v1"
 [env.development]
 name = "2fa-dev"
 
+# 绑定项不可继承，开发环境也需要显式声明。
 [[env.development.kv_namespaces]]
 binding = "SECRETS_KV"
 id = "27891dd17d854dad8de14448763fed4d"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+SW_VERSION = "v1"

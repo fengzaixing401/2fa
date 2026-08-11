@@ -662,8 +662,16 @@ describe('JWT Authentication Utils', () => {
       expect(requiresAuth('/api/login')).toBe(false);
     });
 
+    it('退出登录接口不需要认证', () => {
+      expect(requiresAuth('/api/logout')).toBe(false);
+    });
+
     it('刷新 token 接口不需要认证', () => {
       expect(requiresAuth('/api/refresh-token')).toBe(false);
+    });
+
+    it('时间校准接口不需要认证', () => {
+      expect(requiresAuth('/api/time')).toBe(false);
     });
 
     it('OTP 生成路径不需要认证', () => {
